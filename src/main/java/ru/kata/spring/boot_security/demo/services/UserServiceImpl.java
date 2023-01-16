@@ -1,6 +1,7 @@
 package ru.kata.spring.boot_security.demo.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,13 +21,13 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl implements UserService, UserDetailsService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
@@ -48,24 +49,24 @@ public class UserServiceImpl implements UserService {
     public void updateUser(User user) {
         userRepository
                 .findById(user.getId())
-                .ifPresent(user1 -> {
-                    user1.setUsername(user.getUsername());
-                    user1.setLastName(user.getLastName());
-                    user1.setAge(user.getAge());
-                    user1.setEmail(user.getEmail());
-                    user1.setRoles(user.getRoles());
-                    if (user.getPassword().equals(user1.getPassword())) {
-                        user1.setPassword(user.getPassword());
+                .ifPresent(newUser -> {
+                    newUser.setUsername(user.getUsername());
+                    newUser.setLastName(user.getLastName());
+                    newUser.setAge(user.getAge());
+                    newUser.setEmail(user.getEmail());
+                    newUser.setRoles(user.getRoles());
+                    if (user.getPassword().equals(newUser.getPassword())) {
+                        newUser.setPassword(user.getPassword());
                     } else {
-                        user1.setPassword(passwordEncoder.encode(user.getPassword()));
+                        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
                     }
-                    userRepository.save(user1);
+                    userRepository.save(newUser);
                 });
     }
 
     @Override
     public User findUserById(Integer id) {
-       return userRepository.findById(id).orElse(null);
+        return userRepository.findById(id).orElseThrow(() -> new IllegalStateException("No such user in database!"));
     }
 
     @Override
@@ -82,6 +83,21 @@ public class UserServiceImpl implements UserService {
     @Override
     public User findByEmail(String email) {
         return userRepository.findByEmail(email);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(username);
+        if (user == null) {
+            throw new UsernameNotFoundException(String.format("User '%s' not found", username));
+        }
+
+        return new org.springframework.security.core.userdetails.User(user.getEmail(), user.getPassword(),
+                rolesToAuthority(user.getRoles()));
+    }
+
+    private Collection<? extends GrantedAuthority> rolesToAuthority(Set<Role> roles) {
+        return roles.stream().map(r -> new SimpleGrantedAuthority(r.getName())).collect(Collectors.toList());
     }
 
 }

@@ -20,7 +20,6 @@ public class AdminController {
         this.userService = userService;
     }
 
-
     @GetMapping
     public String findAll(Model model, Principal principal) {
         model.addAttribute("users", userService.getAllUser());
