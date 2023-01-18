@@ -47,21 +47,12 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Override
     @Transactional
     public void updateUser(User user) {
-        userRepository
-                .findById(user.getId())
-                .ifPresent(newUser -> {
-                    newUser.setUsername(user.getUsername());
-                    newUser.setLastName(user.getLastName());
-                    newUser.setAge(user.getAge());
-                    newUser.setEmail(user.getEmail());
-                    newUser.setRoles(user.getRoles());
-                    if (user.getPassword().equals(newUser.getPassword())) {
-                        newUser.setPassword(user.getPassword());
-                    } else {
-                        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
-                    }
-                    userRepository.save(newUser);
-                });
+        if (user.getPassword().equals(userRepository.findByUsername(user.getUsername()).getPassword())) {
+            user.setPassword(user.getPassword());
+        } else {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
+        userRepository.save(user);
     }
 
     @Override
@@ -96,7 +87,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 rolesToAuthority(user.getRoles()));
     }
 
-    private Collection<? extends GrantedAuthority> rolesToAuthority(Set<Role> roles) {
+    private Collection<? extends GrantedAuthority> rolesToAuthority(List<Role> roles) {
         return roles.stream().map(r -> new SimpleGrantedAuthority(r.getName())).collect(Collectors.toList());
     }
 
